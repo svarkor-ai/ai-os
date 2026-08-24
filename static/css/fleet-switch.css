@@ -1,0 +1,66 @@
+/* ============================================================================
+   Fleet switch (M5) — two fleet pills in the topbar (NEW aosf component style)
+   ============================================================================
+   Reads ?fleet= on load for deep-link default (handled by fleet-switch.js, M5);
+   this file styles the visual. Token-first, AA contrast, accessible as a
+   segmented control (aria-pressed reflects the active fleet).
+   ============================================================================ */
+
+.fleet-switch {
+  display: inline-flex;
+  gap: var(--aos-space-1);
+  padding: var(--aos-space-1);
+  background: var(--aos-neutral-100);
+  border: 1px solid var(--aos-border);
+  border-radius: var(--aos-radius-lg);
+  margin-left: auto;
+  margin-right: var(--aos-space-4);
+}
+
+.fleet-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--aos-space-2);
+  padding: var(--aos-space-2) var(--aos-space-3);
+  border: 1px solid transparent;
+  border-radius: var(--aos-radius-md);
+  background: transparent;
+  color: var(--aos-text-muted);
+  font: var(--aos-font-medium) var(--aos-text-sm)/var(--aos-leading-tight) var(--aos-font-body);
+  cursor: pointer;
+  transition: background var(--aos-transition-fast), color var(--aos-transition-fast), border-color var(--aos-transition-fast);
+}
+
+.fleet-pill:hover {
+  color: var(--aos-text);
+  background: var(--aos-neutral-200);
+}
+
+.fleet-pill:focus-visible {
+  outline: 2px solid var(--aos-border-focus);
+  outline-offset: 2px;
+}
+
+.fleet-pill.is-active {
+  background: var(--aos-surface);
+  border-color: var(--aos-border-strong);
+  color: var(--aos-primary-700);
+  font-weight: var(--aos-font-semibold);
+}
+
+.fleet-pill__host {
+  font-family: var(--aos-font-mono);
+  font-size: var(--aos-text-xs);
+  color: inherit;
+  opacity: 0.85;
+}
+
+/* Mobile-first: pills wrap on very small screens */
+@media (max-width: 640px) {
+  .fleet-switch {
+    margin: var(--aos-space-2) 0 0 0;
+  }
+  .fleet-pill__host {
+    display: none; /* keep pills compact on phones */
+  }
+}

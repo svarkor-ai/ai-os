@@ -1,0 +1,105 @@
+/* ============================================================================
+   Grouping (M10) — per-PROJECT grouping (real) + per-TOPIC degradation (FIX#3)
+   ============================================================================
+   Groups job rows by jobs.project_slug; per-topic renders from /events topic_slug
+   and degrades to an explicit "unlinked"/"no topic data" marker when empty —
+   NEVER fabricates a topic label (I7). Tab-like switcher + grouped lists.
+   ============================================================================ */
+
+.grouping {
+  display: flex;
+  flex-direction: column;
+  gap: var(--aos-space-4);
+}
+
+.grouping__switch {
+  display: inline-flex;
+  gap: var(--aos-space-1);
+  padding: var(--aos-space-1);
+  background: var(--aos-neutral-100);
+  border: 1px solid var(--aos-border);
+  border-radius: var(--aos-radius-lg);
+  align-self: flex-start;
+  flex-wrap: wrap;
+}
+
+.grouping__tab {
+  padding: var(--aos-space-2) var(--aos-space-3);
+  border: 1px solid transparent;
+  border-radius: var(--aos-radius-md);
+  background: transparent;
+  color: var(--aos-text-muted);
+  font: var(--aos-font-medium) var(--aos-text-sm)/var(--aos-leading-tight) var(--aos-font-body);
+  cursor: pointer;
+  transition: background var(--aos-transition-fast), color var(--aos-transition-fast);
+}
+
+.grouping__tab:hover { color: var(--aos-text); background: var(--aos-neutral-200); }
+
+.grouping__tab:focus-visible {
+  outline: 2px solid var(--aos-border-focus);
+  outline-offset: 2px;
+}
+
+.grouping__tab.is-active {
+  background: var(--aos-surface);
+  border-color: var(--aos-border-strong);
+  color: var(--aos-primary-700);
+  font-weight: var(--aos-font-semibold);
+}
+
+.grouping__group {
+  margin: 0 0 var(--aos-space-6);
+}
+
+.grouping__group-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--aos-space-3);
+  margin: 0 0 var(--aos-space-2);
+  padding-bottom: var(--aos-space-1);
+  border-bottom: 1px solid var(--aos-border);
+}
+
+.grouping__group-name {
+  margin: 0;
+  font-size: var(--aos-text-base);
+  font-weight: var(--aos-font-semibold);
+  color: var(--aos-text);
+}
+
+.grouping__group-count {
+  font-size: var(--aos-text-xs);
+  color: var(--aos-text-muted);
+  font-family: var(--aos-font-mono);
+}
+
+/* Honest "unlinked" degradation marker (FIX#3 / I7 — never fabricate a label) */
+.grouping__unlinked {
+  display: inline-block;
+  padding: var(--aos-space-1) var(--aos-space-2);
+  border-radius: var(--aos-radius-sm);
+  font-size: var(--aos-text-xs);
+  font-weight: var(--aos-font-medium);
+  background: var(--aos-status-default-bg);
+  color: var(--aos-text-muted);
+  font-style: italic;
+}
+
+.grouping__unlinked::before { content: "— "; }
+
+/* Rows reuse sortable-jobs row handoff (M10 depends on M9 `.sortable__body`). */
+.grouping__list .sortable__body td { border-bottom: 1px solid var(--aos-border); }
+
+.grouping__empty {
+  text-align: center;
+  color: var(--aos-text-muted);
+  padding: var(--aos-space-6);
+  border: 1px dashed var(--aos-border-strong);
+  border-radius: var(--aos-radius-lg);
+  background: var(--aos-surface-alt);
+}
+
+@media (max-width: 640px) {
+  .grouping__switch { align-self: stretch; }
+}

@@ -1,0 +1,93 @@
+/* ============================================================================
+   Sortable jobs table (M9) — client-side sortable table over /jobs (NEW)
+   ============================================================================
+   Sorts by status / age / project on the client; sort NEVER mutates the board
+   (I1 read-only). Header buttons are accessible (visible focus, aria-sort on
+   the <th>). Reuses token palette; row/status styling follows dashboard.css.
+   ============================================================================ */
+
+.sortable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--aos-text-sm);
+  background: var(--aos-surface);
+  border: 1px solid var(--aos-border);
+  border-radius: var(--aos-radius-md);
+  overflow: hidden;
+}
+
+.sortable__head th {
+  background: var(--aos-surface-alt);
+  text-align: left;
+  padding: var(--aos-space-3) var(--aos-space-4);
+  border-bottom: 2px solid var(--aos-border-strong);
+  color: var(--aos-text);
+  font-weight: var(--aos-font-semibold);
+  white-space: nowrap;
+}
+
+.sortable__btn {
+  background: transparent;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-weight: var(--aos-font-semibold);
+  color: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--aos-space-1);
+}
+
+.sortable__btn:hover { color: var(--aos-primary-700); }
+
+.sortable__btn:focus-visible {
+  outline: 2px solid var(--aos-border-focus);
+  outline-offset: 2px;
+  border-radius: var(--aos-radius-sm);
+}
+
+/* sort direction indicator (aria-sort on the th drives it) */
+th[aria-sort="ascending"] .sortable__btn::after { content: " ▲"; }
+th[aria-sort="descending"] .sortable__btn::after { content: " ▼"; }
+
+.sortable__body td {
+  padding: var(--aos-space-3) var(--aos-space-4);
+  border-bottom: 1px solid var(--aos-border);
+  vertical-align: middle;
+}
+
+.sortable__body tr:last-child td { border-bottom: none; }
+
+.sortable__body tr:hover td { background: var(--aos-surface-alt); }
+
+.sortable__id {
+  font-family: var(--aos-font-mono);
+  font-size: var(--aos-text-xs);
+  color: var(--aos-text-muted);
+}
+
+.sortable__status {
+  display: inline-block;
+  padding: var(--aos-space-1) var(--aos-space-2);
+  border-radius: var(--aos-radius-sm);
+  font-size: var(--aos-text-xs);
+  font-weight: var(--aos-font-semibold);
+  background: var(--aos-status-default-bg);
+  color: var(--aos-status-default-fg);
+}
+
+/* Honest "no data" marker (C6c) inside the table body */
+.sortable__empty td {
+  text-align: center;
+  padding: var(--aos-space-6);
+  color: var(--aos-text-muted);
+}
+
+/* Responsive: overflow-scroll wrapper is on the section; stack on tiny screens */
+@media (max-width: 640px) {
+  .sortable__head th,
+  .sortable__body td {
+    padding: var(--aos-space-2) var(--aos-space-3);
+  }
+}
