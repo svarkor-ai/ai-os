@@ -1,175 +1,126 @@
 // ============================================================================
-// app.js (M12) — dashboard shell: tab navigation + render-module orchestrator
-// ============================================================================
-// SINGLE CONCERN: the application shell. It (1) manages the read-only tab
-// navigation (Flöde / Jobb / Agenter / Status), (2) mounts every render module
-// onto a `[data-module]` mount element by looking up that module on window.Aos,
-// and (3) re-invokes each render init with the ACTIVE fleet-bound api client
-// (window.Aos.api, set by M4 Aos.setFleet) whenever the fleet is switched or a
-// panel is shown. It issues NO fetch of its own (I1): every data read is made
-// by a render module through the api client that app.js passes in.
-//
-// CONTRACT M12: the shell never builds URLs, never fetches, never mutates the
-// board (I1). After Aos.setFleet(id) the shell re-invokes each init with the
-// NEW client so every panel shows the selected fleet's data. The DOM declares
-// its mounts via `data-module="<name>"`; app.js resolves <name> on window.Aos
-// and calls init(api, mountEl). Modularity is structural: each render module
-// stays an independently testable unit (M8/M9/M10), the shell is just shared
-// plumbing — no networking, no state, no board writes.
-//
-// DESIGN: browser IIFE (window.Aos.app). Every function is defined at the top
-// and DOM access is guarded by `typeof window` / `document`, so the WHOLE
-// public surface is CommonJS-requireable under node --test (a no-DOM node run
-// simply no-ops the enforcing calls). The boot binding is browser-only.
+// app.js — dashboard shell: fetch the static snapshot, board switch, tab switch,
+// poll. It issues NO board API call and holds NO token: it polls ONE static file
+// (boards.json) that the server-side emitter already scrubbed. All rendering is
+// delegated to the pure window.Aos.render library.
 // ============================================================================
 (function () {
 'use strict';
+if (typeof window === 'undefined' || !window.document) return;
 
-// ---- Mount map --------------------------------------------------------------
-// The DOM declares mounts as <section data-module="<name>">; app.js resolves
-// <name> on window.Aos (a render module binding itself to Aos.{name}).
-var TABS = { flode: 'panel-timeline', jobb: 'panel-fanout', agenter: 'panel-agents', status: 'panel-status' };
+var SNAPSHOT_URL = 'boards.json';   // co-located with index.html on the served root
+var POLL_MS = 60000;
 
-function mountKeys() {
-  if (typeof window === 'undefined' || !window.document) return [];
-  var els = window.document.querySelectorAll('[data-module]');
-  var keys = [];
-  for (var i = 0; i < els.length; i++) keys.push(els[i].getAttribute('data-module'));
-  return keys;
+var state = { data: null, board: 'orchestrator', tab: 'projekt', error: null };
+
+function $(id) { return document.getElementById(id); }
+function boardById(id) {
+  var boards = (state.data && state.data.boards) || [];
+  for (var i = 0; i < boards.length; i++) if (boards[i].id === id) return boards[i];
+  return boards[0] || null;
 }
 
-// Derive which tab governs a given mount element by climbing to its page__panel.
-function panelOf(el) {
-  if (!el || typeof window === 'undefined' || !window.document) return '';
-  var n = el;
-  while (n && n !== window.document.body) {
-    if (n.getAttribute && n.getAttribute('data-panel')) return n.getAttribute('data-panel');
-    n = n.parentNode;
-  }
-  return '';
-}
-
-function badgeCount(n) {
-  return (typeof n === 'number' && n > 0) ? n : 0;
-}
-
-// Mount a single module onto its element with the CURRENT active api.
-function mountOne(name, el, api) {
-  if (typeof window === 'undefined') return;
-  var Aos = window.Aos || {};
-  var fn = Aos[name];
-  if (typeof fn !== 'function') {
-    el.setAttribute('data-mount-error', 'missing:' + name);
-    return;
-  }
-  var result = fn(api, el);
-  if (result && typeof result.refresh === 'function') {
-    el.__aosRefresh = result.refresh;
-  }
-}
-
-// Mount every [data-module] element.
-function mountAll(api) {
-  if (typeof window === 'undefined' || !window.document) return;
-  var els = window.document.querySelectorAll('[data-module]');
-  for (var i = 0; i < els.length; i++) {
-    mountOne(els[i].getAttribute('data-module'), els[i], api);
-  }
-}
-
-function showTab(name) {
-  if (typeof window === 'undefined' || !window.document) return;
-  var panelId = TABS[name] || name;
-  var panel = window.document.getElementById(panelId);
-  if (!panel) return;
-
-  var panels = window.document.querySelectorAll('.page__panel');
-  for (var i = 0; i < panels.length; i++) panels[i].hidden = true;
-  panel.hidden = false;
-
-  var tabs = window.document.querySelectorAll('.topnav__tab');
-  for (var j = 0; j < tabs.length; j++) {
-    tabs[j].classList.toggle('is-active', tabs[j].getAttribute('id') === 'tab-' + name);
-    tabs[j].setAttribute('aria-selected', tabs[j].getAttribute('id') === 'tab-' + name ? 'true' : 'false');
-  }
-
-  refreshPanel(name);
-}
-
-function refreshPanel(name) {
-  if (typeof window === 'undefined' || !window.document) return;
-  var Aos = window.Aos || {};
-  var panelId = TABS[name] || name;
-  var panel = window.document.getElementById(panelId);
-  if (!panel) return;
-  var els = panel.querySelectorAll('[data-module]');
-  for (var i = 0; i < els.length; i++) {
-    var el = els[i];
-    if (el.__aosRefresh) el.__aosRefresh();
-    else mountOne(el.getAttribute('data-module'), el, Aos.api);
-  }
-}
-
-// Named public refresh: re-invokes EVERY [data-module] with the current client.
-function refreshAll() {
-  if (typeof window === 'undefined' || !window.document) return;
-  var Aos = window.Aos || {};
-  var els = window.document.querySelectorAll('[data-module]');
-  for (var i = 0; i < els.length; i++) {
-    var el = els[i];
-    if (el.__aosRefresh) el.__aosRefresh();
-    else mountOne(el.getAttribute('data-module'), el, Aos.api);
-  }
-}
-
-function bindTabs() {
-  if (typeof window === 'undefined' || !window.document) return;
-  var tabs = window.document.querySelectorAll('.topnav__tab');
-  for (var i = 0; i < tabs.length; i++) {
-    (function (btn) {
-      btn.addEventListener('click', function () {
-        showTab((btn.getAttribute('id') || '').replace(/^tab-/, ''));
-      });
-    })(tabs[i]);
-  }
-}
-
-function boot() {
-  if (typeof window === 'undefined' || !window.document) return;
-  var Aos = window.Aos = window.Aos || {};
-
-  // Fleet switch drives refreshAll on change (M5 + C6f): re-invokes each mount
-  // with the NEW fleet-bound client.
-  if (Aos.fleetSwitch && typeof Aos.fleetSwitch.initFleetSwitch === 'function') {
-    Aos.fleetSwitch.initFleetSwitch(
-      window.document.querySelector('.fleet-switch'),
-      { onChange: refreshAll }
-    );
-  } else {
-    Aos.api = Aos.api || (Aos.setFleet ? Aos.setFleet('A') : Aos.api);
-  }
-
-  bindTabs();
-  refreshAll();
-}
-
-var EXPORTS = {
-  boot: boot,
-  showTab: showTab,
-  refreshAll: refreshAll,
-  refreshPanel: refreshPanel,
-  mountAll: mountAll,
-  mountKeys: mountKeys,
-  panelOf: panelOf,
-  badgeCount: badgeCount,
+var RENDERERS = {
+  projekt: function (b) { return window.Aos.render.renderProjects(b); },
+  beroenden: function (b) { return window.Aos.render.renderDependencies(b); },
+  ko: function (b) { return window.Aos.render.renderQueue(b); },
+  verifiering: function (b) { return window.Aos.render.renderVerification(b); }
 };
 
-if (typeof window !== 'undefined') {
-  window.Aos = window.Aos || {};
-  window.Aos.app = EXPORTS;
+function renderMeta() {
+  var bar = $('meta-bar');
+  if (!bar) return;
+  if (state.error) {
+    bar.innerHTML = '<span class="meta meta--error">Kunde inte läsa ögonblicksbilden: ' +
+      window.Aos.render.escapeHtml(state.error) + '</span>';
+    return;
+  }
+  var b = boardById(state.board);
+  var gen = state.data && state.data.generated_at ? new Date(state.data.generated_at) : null;
+  var when = gen ? gen.toLocaleString('sv-SE') : '—';
+  var hidden = b ? (b.hidden_count || 0) : 0;
+  var tasks = b ? (b.task_count || (b.tasks ? b.tasks.length : 0)) : 0;
+  bar.innerHTML =
+    '<span class="meta">Tavla: <strong>' + window.Aos.render.escapeHtml(b ? b.label : '—') + '</strong></span>' +
+    '<span class="meta">' + tasks + ' jobb</span>' +
+    '<span class="meta meta--hidden" title="Känsliga projekt filtrerade på servern">' + hidden + ' dolda (känsliga)</span>' +
+    '<span class="meta meta--time">Uppdaterad ' + window.Aos.render.escapeHtml(when) + '</span>';
 }
 
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = EXPORTS;
+function renderPanel() {
+  var body = $(state.tab + '-body');
+  if (!body) return;
+  if (state.error) { body.innerHTML = '<div class="state state--error" role="alert">Ingen data.</div>'; return; }
+  var b = boardById(state.board);
+  try {
+    body.innerHTML = (RENDERERS[state.tab] || RENDERERS.projekt)(b);
+  } catch (e) {
+    body.innerHTML = '<div class="state state--error" role="alert">Renderingsfel: ' +
+      window.Aos.render.escapeHtml(e && e.message) + '</div>';
+  }
 }
+
+function renderAll() { renderMeta(); renderPanel(); }
+
+function showTab(name) {
+  state.tab = name;
+  var panels = document.querySelectorAll('.panel');
+  for (var i = 0; i < panels.length; i++) panels[i].hidden = panels[i].getAttribute('data-tab') !== name;
+  var tabs = document.querySelectorAll('.tab');
+  for (var j = 0; j < tabs.length; j++) {
+    var on = tabs[j].getAttribute('data-tab') === name;
+    tabs[j].classList.toggle('is-active', on);
+    tabs[j].setAttribute('aria-selected', on ? 'true' : 'false');
+  }
+  renderPanel();
+}
+
+function showBoard(id) {
+  state.board = id;
+  var pills = document.querySelectorAll('.board-pill');
+  for (var i = 0; i < pills.length; i++) {
+    var on = pills[i].getAttribute('data-board') === id;
+    pills[i].classList.toggle('is-active', on);
+    pills[i].setAttribute('aria-pressed', on ? 'true' : 'false');
+  }
+  renderAll();
+}
+
+function bind() {
+  var tabs = document.querySelectorAll('.tab');
+  for (var i = 0; i < tabs.length; i++) (function (el) {
+    el.addEventListener('click', function () { showTab(el.getAttribute('data-tab')); });
+  })(tabs[i]);
+  var pills = document.querySelectorAll('.board-pill');
+  for (var j = 0; j < pills.length; j++) (function (el) {
+    el.addEventListener('click', function () { showBoard(el.getAttribute('data-board')); });
+  })(pills[j]);
+  // deep link ?board= & ?tab=
+  try {
+    var q = new URLSearchParams(window.location.search);
+    if (q.get('board')) state.board = q.get('board');
+    if (q.get('tab')) state.tab = q.get('tab');
+  } catch (e) { /* older browsers: ignore */ }
+}
+
+function load() {
+  fetch(SNAPSHOT_URL, { cache: 'no-store' })
+    .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function (data) { state.data = data; state.error = null; syncControls(); renderAll(); })
+    .catch(function (e) { state.error = e && e.message ? e.message : String(e); renderAll(); });
+}
+
+// reflect deep-linked board/tab into the controls once data is present
+function syncControls() { showBoard(state.board); showTab(state.tab); }
+
+function boot() {
+  bind();
+  var body = $('projekt-body');
+  if (body) body.innerHTML = '<div class="state state--loading" role="status">Läser in tavlor…</div>';
+  load();
+  setInterval(load, POLL_MS);
+}
+
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+else boot();
 })();

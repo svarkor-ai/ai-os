@@ -1,4 +1,0 @@
-fastapi
-uvicorn[standard]
-httpx            # used by the gate spy
-pydantic         # used by app/config.py (BaseModel)

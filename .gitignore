@@ -10,3 +10,11 @@ dist/
 # OS
 .DS_Store
 Thumbs.db
+
+# Generated snapshot — written server-side by mc-boards-snapshot.py into the served
+# web root; NEVER committed (it is board data, regenerated on a timer).
+boards.json
+*.tmp
+
+# node
+node_modules/

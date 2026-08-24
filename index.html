@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Svarkor AI OS — Tavlor (läs-vy)</title>
+  <meta name="description" content="Publik läs-vy över Svarkor AI OS två Mission Control-tavlor (Orkestrator + Svarkor): projektträd, beroenden, kö och verifiering. Endast läsning, ingen känslig data." />
+  <link rel="stylesheet" href="static/css/app.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Hoppa till innehåll</a>
+
+  <header class="topbar">
+    <div class="topbar__inner">
+      <div class="brand">
+        <span class="brand__mark" aria-hidden="true">◈</span>
+        <span class="brand__name">Svarkor <strong>AI&nbsp;OS</strong></span>
+        <span class="brand__phase">tavlor · läs-vy</span>
+      </div>
+
+      <!-- Two-board switch: the two Mission Control boards -->
+      <nav class="board-switch" aria-label="Välj tavla">
+        <button type="button" class="board-pill is-active" id="board-orchestrator" data-board="orchestrator" aria-pressed="true">Orkestrator</button>
+        <button type="button" class="board-pill" id="board-svarkor" data-board="svarkor" aria-pressed="false">Svarkor</button>
+      </nav>
+    </div>
+
+    <nav class="tabs" aria-label="Vy" role="tablist">
+      <button type="button" class="tab is-active" id="tab-projekt" role="tab" aria-selected="true" data-tab="projekt">Projekt</button>
+      <button type="button" class="tab" id="tab-beroenden" role="tab" aria-selected="false" data-tab="beroenden">Beroenden</button>
+      <button type="button" class="tab" id="tab-ko" role="tab" aria-selected="false" data-tab="ko">Kö</button>
+      <button type="button" class="tab" id="tab-verifiering" role="tab" aria-selected="false" data-tab="verifiering">Verifiering</button>
+    </nav>
+  </header>
+
+  <main id="main" class="page">
+    <div id="meta-bar" class="meta-bar" aria-live="polite"></div>
+
+    <section id="panel-projekt" class="panel" data-tab="projekt" aria-labelledby="tab-projekt">
+      <div id="projekt-body" class="panel__body"></div>
+    </section>
+    <section id="panel-beroenden" class="panel" data-tab="beroenden" aria-labelledby="tab-beroenden" hidden>
+      <div id="beroenden-body" class="panel__body"></div>
+    </section>
+    <section id="panel-ko" class="panel" data-tab="ko" aria-labelledby="tab-ko" hidden>
+      <div id="ko-body" class="panel__body"></div>
+    </section>
+    <section id="panel-verifiering" class="panel" data-tab="verifiering" aria-labelledby="tab-verifiering" hidden>
+      <div id="verifiering-body" class="panel__body"></div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <p>Svarkor AI OS · Publik läs-vy över två Mission Control-tavlor · Endast läsning, inga ändringar utförs · Känsliga projekt och all känslig data är bortfiltrerade på servern.</p>
+  </footer>
+
+  <script src="static/js/render.js"></script>
+  <script src="static/js/app.js"></script>
+</body>
+</html>
