@@ -137,11 +137,42 @@ function queueNext(tasks) {
   return { actionable: actionable, inflight: inflight, waiting: waiting, gated: gated };
 }
 
-// ---- verification tail: completed_unverified awaiting the flip, and the verified/refuted end ----
+// ---- verifiability state (HONEST three-way split of the "unverified" pile) ----
+// A completed_unverified card is NOT one undifferentiated "unverified" blob. The server
+// emitter stamps a STRUCTURAL `verifiable` boolean on every card (mc-boards-snapshot.py),
+// computed with the EXACT rule knut's verification loop uses to refuse a card — a non-empty
+// `acceptance` bar (knut_loop.py: `(j.acceptance||'').strip()`). So a completed_unverified
+// card is one of three genuinely different things, and we must show them apart or the
+// "lots of unverified" view lies:
+//   pending      = verifiable=true,  completed_unverified — has a bar, awaiting 2x-verify
+//   unverifiable = verifiable=false, completed_unverified — NO bar; knut REFUSES it
+//                  ("need a bar first"); it can never flip to verified until a bar is derived
+//   verified     = verified / deployed — already checked
+function isVerifiable(t) { return !!(t && t.verifiable); }
+function verifyState(t) {
+  if (!t) return null;
+  if (t.status === 'verified' || t.status === 'deployed') return 'verified';
+  if (t.status === 'completed_unverified') return isVerifiable(t) ? 'pending' : 'unverifiable';
+  return null;
+}
+// Exact Swedish labels (owner-specified) + a non-colour marker glyph (colour-blind safe).
+var VERIFY_LABEL = {
+  pending:      'väntar verifiering',
+  unverifiable: 'ej verifierbar – saknar acceptanskriterier',
+  verified:     'verifierad'
+};
+var VERIFY_MARK = { pending: '⏳', unverifiable: '⊘', verified: '✓' };
+
+// ---- verification tail: the three-way split of completed_unverified + the verified end ----
 function verificationTail(tasks) {
   var arr = Array.isArray(tasks) ? tasks : [];
+  var awaiting = arr.filter(function (t) { return t.status === 'completed_unverified'; });
   return {
-    awaiting: arr.filter(function (t) { return t.status === 'completed_unverified'; }),
+    // `awaiting` kept = ALL completed_unverified (back-compat); the two sub-buckets are the
+    // honest split the dashboard renders.
+    awaiting: awaiting,
+    awaitingVerifiable: awaiting.filter(isVerifiable),
+    unverifiable: awaiting.filter(function (t) { return !isVerifiable(t); }),
     verified: arr.filter(function (t) { return t.status === 'verified' || t.status === 'deployed'; }),
     cancelled: arr.filter(function (t) { return t.status === 'cancelled'; })
   };
@@ -171,6 +202,15 @@ function statusChip(status) {
 function seatChip(seat) {
   return seat ? '<span class="chip chip--seat">' + escapeHtml(seat) + '</span>' : '';
 }
+// The verifiability badge — the honest three-state marker. Only rendered for cards that
+// actually have a verification state (completed_unverified or verified/deployed).
+function verifyBadge(t) {
+  var s = verifyState(t);
+  if (!s) return '';
+  return '<span class="vbadge vbadge--' + s + '" title="' + escapeHtml(VERIFY_LABEL[s]) + '">' +
+    '<span class="vbadge__mark" aria-hidden="true">' + VERIFY_MARK[s] + '</span>' +
+    escapeHtml(VERIFY_LABEL[s]) + '</span>';
+}
 function edgeChips(t) {
   var out = '';
   (t.after || []).forEach(function (d) {
@@ -192,6 +232,7 @@ function taskNodeHTML(node) {
       '<code class="node__id">' + escapeHtml(t.display_id) + '</code>' +
       statusChip(t.status) + seatChip(t.seat) +
       (t.released ? '<span class="chip chip--released">släppt</span>' : '') +
+      verifyBadge(t) +
     '</div>' +
     '<div class="node__title">' + escapeHtml(t.title || '(namnlöst)') + '</div>' +
     (edgeChips(t) ? '<div class="node__edges">' + edgeChips(t) + '</div>' : '') +
@@ -228,9 +269,9 @@ function renderProjects(board) {
 }
 
 function taskRowHTML(t) {
-  return '<li class="row row--' + statusTone(t.status) + '">' +
+  return '<li class="row row--' + statusTone(t.status) + (verifyState(t) ? ' row--vf-' + verifyState(t) : '') + '">' +
     '<code class="row__id">' + escapeHtml(t.display_id) + '</code>' +
-    statusChip(t.status) + seatChip(t.seat) +
+    statusChip(t.status) + seatChip(t.seat) + verifyBadge(t) +
     '<span class="row__title">' + escapeHtml(t.title || '(namnlöst)') + '</span>' +
     (edgeChips(t) ? '<span class="row__edges">' + edgeChips(t) + '</span>' : '') +
   '</li>';
@@ -250,13 +291,38 @@ function renderQueue(board) {
          section('Blockerade / väntar godkännande', taskListHTML(q.gated));
 }
 
+// A legend explaining the three verification states — so the "klar (overif.)" pile is read
+// honestly: most cards HAVE a bar and are simply awaiting a verifier; a few have NO bar and
+// can NEVER be verified until one is derived; and the verified end is done.
+function verifyLegend(v) {
+  var item = function (state, n) {
+    return '<span class="vlegend__item">' +
+      '<span class="vbadge vbadge--' + state + '">' +
+        '<span class="vbadge__mark" aria-hidden="true">' + VERIFY_MARK[state] + '</span>' +
+        escapeHtml(VERIFY_LABEL[state]) + '</span>' +
+      '<span class="vlegend__n">' + n + '</span></span>';
+  };
+  return '<div class="vlegend" role="note">' +
+    '<span class="vlegend__lead">Verifieringsläge:</span>' +
+    item('pending', v.awaitingVerifiable.length) +
+    item('unverifiable', v.unverifiable.length) +
+    item('verified', v.verified.length) +
+  '</div>';
+}
+
 function renderVerification(board) {
   var tasks = (board && board.tasks) || [];
   if (board && board.error) return errorHTML('Tavlan kunde inte läsas.');
   var v = verificationTail(tasks);
-  return section('Väntar på verifiering (klar → verifieras)', taskListHTML(v.awaiting)) +
-         section('Verifierade / driftsatta', taskListHTML(v.verified.slice(0, 60))) +
-         section('Avbrutna', taskListHTML(v.cancelled.slice(0, 40)));
+  return verifyLegend(v) +
+    section('Väntar verifiering (har acceptanskriterier – ej verifierad ännu) · ' + v.awaitingVerifiable.length,
+            taskListHTML(v.awaitingVerifiable)) +
+    section('Ej verifierbar – saknar acceptanskriterier · ' + v.unverifiable.length,
+            (v.unverifiable.length
+              ? '<p class="muted">Dessa kort är klara men saknar en checkbar acceptansribba, så verifieraren (knut) kan inte verifiera dem – de måste först få en ribba. De räknas alltså INTE som “väntar på verifiering”.</p>'
+              : '') + taskListHTML(v.unverifiable)) +
+    section('Verifierade / driftsatta · ' + v.verified.length, taskListHTML(v.verified.slice(0, 60))) +
+    section('Avbrutna · ' + v.cancelled.length, taskListHTML(v.cancelled.slice(0, 40)));
 }
 
 function renderDependencies(board) {
@@ -353,7 +419,8 @@ var API = {
   isDone: isDone, isProgress: isProgress, buildTree: buildTree, groupByProject: groupByProject,
   projectProgress: projectProgress, queueNext: queueNext, verificationTail: verificationTail,
   dependencyEdges: dependencyEdges, renderProjects: renderProjects, renderQueue: renderQueue,
-  renderVerification: renderVerification, renderDependencies: renderDependencies, UNLINKED: UNLINKED
+  renderVerification: renderVerification, renderDependencies: renderDependencies, UNLINKED: UNLINKED,
+  isVerifiable: isVerifiable, verifyState: verifyState, VERIFY_LABEL: VERIFY_LABEL
 };
 
 if (typeof window !== 'undefined') { window.Aos = window.Aos || {}; window.Aos.render = API; }

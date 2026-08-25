@@ -7,10 +7,11 @@ const R = require('../static/js/render.js');
 
 const tasks = [
   { display_id: '600',   parent_id: null,  status: 'queued',               project_slug: 'demo', seat: null,    title: 'Root goal', released: false, after: [], onfail: [], cycles: null },
-  { display_id: '600.1', parent_id: '600', status: 'verified',             project_slug: 'demo', seat: 'sickan', title: 'T1 plan', released: false, after: [], onfail: [], cycles: null },
-  { display_id: '600.2', parent_id: '600', status: 'completed_unverified', project_slug: 'demo', seat: 'bernie', title: 'T2 arch', released: true,  after: ['600.1'], onfail: [], cycles: null },
+  { display_id: '600.1', parent_id: '600', status: 'verified',             project_slug: 'demo', seat: 'sickan', title: 'T1 plan', released: false, after: [], onfail: [], cycles: null, verifiable: true },
+  { display_id: '600.2', parent_id: '600', status: 'completed_unverified', project_slug: 'demo', seat: 'bernie', title: 'T2 arch', released: true,  after: ['600.1'], onfail: [], cycles: null, verifiable: true },
   { display_id: '600.3', parent_id: '600', status: 'queued',               project_slug: 'demo', seat: 'neo',    title: 'T3 review', released: true, after: ['600.2'], onfail: ['600.2'], cycles: 3 },
   { display_id: '600.4', parent_id: '600', status: 'queued',               project_slug: 'demo', seat: 'x',      title: 'T4 later', released: true, after: ['600.3'], onfail: [], cycles: null },
+  { display_id: '600.5', parent_id: '600', status: 'completed_unverified', project_slug: 'demo', seat: 'ada',    title: 'T5 nobar', released: true,  after: [], onfail: [], cycles: null, verifiable: false },
   { display_id: '700',   parent_id: null,  status: 'cancelled',            project_slug: 'other', seat: null,   title: 'Dead', released: false, after: [], onfail: [], cycles: null }
 ];
 
@@ -27,22 +28,22 @@ test('buildTree nests children by display_id parent', () => {
   const roots = R.buildTree(tasks);
   const demoRoot = roots.find(n => n.task.display_id === '600');
   assert.ok(demoRoot);
-  assert.strictEqual(demoRoot.children.length, 4);
-  assert.deepStrictEqual(demoRoot.children.map(c => c.task.display_id), ['600.1', '600.2', '600.3', '600.4']);
+  assert.strictEqual(demoRoot.children.length, 5);
+  assert.deepStrictEqual(demoRoot.children.map(c => c.task.display_id), ['600.1', '600.2', '600.3', '600.4', '600.5']);
 });
 
 test('groupByProject buckets by project_slug', () => {
   const g = R.groupByProject(tasks);
-  assert.strictEqual(g.demo.length, 5);
+  assert.strictEqual(g.demo.length, 6);
   assert.strictEqual(g.other.length, 1);
 });
 
 test('projectProgress excludes cancelled from the denominator', () => {
   const p = R.projectProgress(tasks.filter(t => t.project_slug === 'demo'));
-  // 600.1 verified + 600.2 completed_unverified = 2 done of 5 active
-  assert.strictEqual(p.active, 5);
-  assert.strictEqual(p.done, 2);
-  assert.strictEqual(p.pct, 40);
+  // 600.1 verified + 600.2 & 600.5 completed_unverified = 3 done of 6 active
+  assert.strictEqual(p.active, 6);
+  assert.strictEqual(p.done, 3);
+  assert.strictEqual(p.pct, 50);
 });
 
 test('queueNext: actionable only when after-targets are done AND released', () => {
@@ -57,9 +58,40 @@ test('queueNext: actionable only when after-targets are done AND released', () =
 
 test('verificationTail splits awaiting vs verified vs cancelled', () => {
   const v = R.verificationTail(tasks);
-  assert.deepStrictEqual(v.awaiting.map(t => t.display_id), ['600.2']);
+  // awaiting = ALL completed_unverified (back-compat)
+  assert.deepStrictEqual(v.awaiting.map(t => t.display_id), ['600.2', '600.5']);
   assert.deepStrictEqual(v.verified.map(t => t.display_id), ['600.1']);
   assert.deepStrictEqual(v.cancelled.map(t => t.display_id), ['700']);
+});
+
+test('verificationTail HONEST three-way split: verifiable vs unverifiable vs verified', () => {
+  const v = R.verificationTail(tasks);
+  // 600.2 has a bar (verifiable=true) -> väntar verifiering
+  assert.deepStrictEqual(v.awaitingVerifiable.map(t => t.display_id), ['600.2']);
+  // 600.5 has NO bar (verifiable=false) -> ej verifierbar
+  assert.deepStrictEqual(v.unverifiable.map(t => t.display_id), ['600.5']);
+  assert.deepStrictEqual(v.verified.map(t => t.display_id), ['600.1']);
+});
+
+test('verifyState maps status+verifiable to the three states', () => {
+  assert.strictEqual(R.verifyState({ status: 'completed_unverified', verifiable: true }), 'pending');
+  assert.strictEqual(R.verifyState({ status: 'completed_unverified', verifiable: false }), 'unverifiable');
+  assert.strictEqual(R.verifyState({ status: 'completed_unverified' }), 'unverifiable'); // missing flag => no bar
+  assert.strictEqual(R.verifyState({ status: 'verified' }), 'verified');
+  assert.strictEqual(R.verifyState({ status: 'deployed' }), 'verified');
+  assert.strictEqual(R.verifyState({ status: 'queued' }), null);
+});
+
+test('renderVerification shows the three states, legend, and exact Swedish labels', () => {
+  const board = { id: 'demo', label: 'Demo', tasks: tasks };
+  const html = R.renderVerification(board);
+  assert.ok(html.includes('vlegend'));                                  // legend present
+  assert.ok(html.includes('väntar verifiering'));                       // state (a) label
+  assert.ok(html.includes('ej verifierbar – saknar acceptanskriterier')); // state (b) label
+  assert.ok(html.includes('verifierad'));                              // state (c) label
+  assert.ok(html.includes('vbadge--pending'));
+  assert.ok(html.includes('vbadge--unverifiable'));
+  assert.ok(html.includes('vbadge--verified'));
 });
 
 test('dependencyEdges emits after + onfail edges with known flag', () => {

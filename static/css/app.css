@@ -10,6 +10,12 @@
   --queued: #7c8798; --running: #e0a13a; --blocked: #e5484d;
   --approval: #b083f0; --unverified: #35b6c9; --verified: #3fb950; --deployed: #2ea043;
   --cancelled: #55606d; --default: #7c8798; --seat: #6e7bd8;
+  /* verification-state palette (three honest states) — kept distinct from the amber
+     'running' and grey 'queued' tones so the states never read alike:
+       pending      = teal (info: has a bar, awaiting a verifier)
+       unverifiable = warm taupe + dashed (inert: no bar, cannot be verified)
+       verified     = green (done) */
+  --vf-pending: #35b6c9; --vf-unverifiable: #b98a5e; --vf-verified: #3fb950;
   --radius: 10px; --tap: 44px;
   --mono: ui-monospace, "SFMono-Regular", "JetBrains Mono", "Menlo", "Consolas", monospace;
   --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -19,6 +25,7 @@
     --bg: #f4f6f9; --bg-2: #ffffff; --bg-3: #eef1f5; --line: #d6dde5;
     --fg: #1a2029; --fg-dim: #4a5563; --fg-mut: #78848f;
     --cancelled: #9aa5b1;
+    --vf-pending: #0e8fa3; --vf-unverifiable: #8a5f30; --vf-verified: #2ea043;
   }
 }
 * { box-sizing: border-box; }
@@ -84,6 +91,28 @@ body {
 .chip--default { background: color-mix(in srgb, var(--default) 22%, transparent); color: var(--default); }
 .chip--seat { background: color-mix(in srgb, var(--seat) 22%, transparent); color: var(--seat); }
 .chip--released { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
+
+/* ---- verification-state badges (the honest three-state marker) ---- */
+.vbadge {
+  display: inline-flex; align-items: center; gap: 4px; padding: 2px 9px; border-radius: 999px;
+  font-size: .72rem; font-weight: 600; line-height: 1.5; white-space: nowrap;
+  border: 1px solid transparent;
+}
+.vbadge__mark { font-size: .82em; }
+.vbadge--pending { background: color-mix(in srgb, var(--vf-pending) 20%, transparent); color: var(--vf-pending); border-color: color-mix(in srgb, var(--vf-pending) 45%, transparent); }
+.vbadge--unverifiable { background: color-mix(in srgb, var(--vf-unverifiable) 18%, transparent); color: var(--vf-unverifiable); border: 1px dashed color-mix(in srgb, var(--vf-unverifiable) 60%, transparent); }
+.vbadge--verified { background: color-mix(in srgb, var(--vf-verified) 20%, transparent); color: var(--vf-verified); border-color: color-mix(in srgb, var(--vf-verified) 45%, transparent); }
+
+/* legend: swatch + count, wraps on a phone */
+.vlegend { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 12px; margin: 0 0 14px; background: var(--bg-2); border: 1px solid var(--line); border-radius: var(--radius); }
+.vlegend__lead { color: var(--fg-dim); font-size: .8rem; font-weight: 600; }
+.vlegend__item { display: inline-flex; align-items: center; gap: 6px; }
+.vlegend__n { font-family: var(--mono); font-size: .8rem; font-weight: 700; color: var(--fg); }
+
+/* row left-accent per verification state so each state is distinct even mid-scroll */
+.row--vf-pending { border-left-color: var(--vf-pending); }
+.row--vf-unverifiable { border-left-color: var(--vf-unverifiable); border-left-style: dashed; }
+.row--vf-verified { border-left-color: var(--vf-verified); }
 
 /* ---- project cards / tree ---- */
 .project { border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-2); margin-bottom: 10px; overflow: hidden; }
