@@ -310,6 +310,15 @@ function verifyLegend(v) {
   '</div>';
 }
 
+// The two long tails are CAPPED to keep the page light (verified 60, cancelled 40). A heading
+// must never state a count the list below contradicts, so the cap is DISCLOSED in the heading
+// ("· visar 60 av 143") whenever it bites. Measured on the live page 2026-08-29: the svarkor
+// board read "Verifierade / driftsatta · 143" over 60 rows and "Avbrutna · 107" over 40.
+var VERIFIED_CAP = 60, CANCELLED_CAP = 40;
+function cappedTitle(label, n, cap) {
+  return label + ' · ' + (n > cap ? 'visar ' + cap + ' av ' + n : n);
+}
+
 function renderVerification(board) {
   var tasks = (board && board.tasks) || [];
   if (board && board.error) return errorHTML('Tavlan kunde inte läsas.');
@@ -321,8 +330,10 @@ function renderVerification(board) {
             (v.unverifiable.length
               ? '<p class="muted">Dessa kort är klara men saknar en checkbar acceptansribba, så verifieraren (knut) kan inte verifiera dem – de måste först få en ribba. De räknas alltså INTE som “väntar på verifiering”.</p>'
               : '') + taskListHTML(v.unverifiable)) +
-    section('Verifierade / driftsatta · ' + v.verified.length, taskListHTML(v.verified.slice(0, 60))) +
-    section('Avbrutna · ' + v.cancelled.length, taskListHTML(v.cancelled.slice(0, 40)));
+    section(cappedTitle('Verifierade / driftsatta', v.verified.length, VERIFIED_CAP),
+            taskListHTML(v.verified.slice(0, VERIFIED_CAP))) +
+    section(cappedTitle('Avbrutna', v.cancelled.length, CANCELLED_CAP),
+            taskListHTML(v.cancelled.slice(0, CANCELLED_CAP)));
 }
 
 function renderDependencies(board) {
@@ -420,7 +431,8 @@ var API = {
   projectProgress: projectProgress, queueNext: queueNext, verificationTail: verificationTail,
   dependencyEdges: dependencyEdges, renderProjects: renderProjects, renderQueue: renderQueue,
   renderVerification: renderVerification, renderDependencies: renderDependencies, UNLINKED: UNLINKED,
-  isVerifiable: isVerifiable, verifyState: verifyState, VERIFY_LABEL: VERIFY_LABEL
+  isVerifiable: isVerifiable, verifyState: verifyState, VERIFY_LABEL: VERIFY_LABEL,
+  cappedTitle: cappedTitle, VERIFIED_CAP: VERIFIED_CAP, CANCELLED_CAP: CANCELLED_CAP
 };
 
 if (typeof window !== 'undefined') { window.Aos = window.Aos || {}; window.Aos.render = API; }

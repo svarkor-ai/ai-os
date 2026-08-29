@@ -120,3 +120,23 @@ test('empty and error states', () => {
   assert.ok(R.renderProjects({ tasks: [] }).includes('Inga jobb'));
   assert.ok(R.renderProjects({ error: 'boom', tasks: [] }).includes('kunde inte'));
 });
+
+test('renderVerification: a heading never states a count the rows below contradict (cap disclosed)', () => {
+  const many = [];
+  for (let i = 0; i < 70; i++) many.push({ display_id: String(1000 + i), status: 'verified',  project_slug: 'p', after: [], onfail: [] });
+  for (let i = 0; i < 45; i++) many.push({ display_id: String(2000 + i), status: 'cancelled', project_slug: 'p', after: [], onfail: [] });
+  const html = R.renderVerification({ tasks: many });
+  assert.ok(html.includes('Verifierade / driftsatta · visar 60 av 70'), 'verified heading discloses the cap');
+  assert.ok(html.includes('Avbrutna · visar 40 av 45'), 'cancelled heading discloses the cap');
+  // the rows rendered under each capped heading equal the disclosed cap
+  const secs = html.split('<section class="sec">').slice(1);
+  const rowsOf = (needle) => (secs.find(s => s.includes(needle)).match(/<li class="row /g) || []).length;
+  assert.strictEqual(rowsOf('visar 60 av 70'), 60);
+  assert.strictEqual(rowsOf('visar 40 av 45'), 40);
+  // under the cap the plain count is kept, and it equals the rows
+  const few = R.renderVerification({ tasks: many.slice(0, 5).concat(many.slice(70, 73)) });
+  assert.ok(few.includes('Verifierade / driftsatta · 5'));
+  assert.ok(few.includes('Avbrutna · 3'));
+  assert.strictEqual(R.cappedTitle('X', 60, 60), 'X · 60');       // exactly at the cap: no disclosure needed
+  assert.strictEqual(R.cappedTitle('X', 61, 60), 'X · visar 60 av 61');
+});
