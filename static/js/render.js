@@ -123,7 +123,7 @@ function queueNext(tasks) {
     });
   };
   var actionable = arr.filter(function (t) {
-    return t.status === 'queued' && afterDone(t) && (t.released || (t.after || []).length === 0 ? true : t.released);
+    return t.status === 'queued' && afterDone(t) && !!t.released; // README contract: [released] required, dep-free or not
   });
   // stricter view: released ones float to the top
   actionable.sort(function (a, b) {

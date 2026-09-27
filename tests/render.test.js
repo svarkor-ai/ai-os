@@ -56,6 +56,18 @@ test('queueNext: actionable only when after-targets are done AND released', () =
   assert.ok(q.waiting.map(t => t.display_id).includes('600.4'));
 });
 
+test('queueNext: an unreleased queued task is NEVER näst på tur, even with no after-deps', () => {
+  // README contract: queued + [released] + all [after:] done. A dep-free unreleased task
+  // must not be actionable (regression: the old `|| after.length === 0` escape hatch).
+  const unreleased = { display_id: '601', parent_id: null, status: 'queued', project_slug: 'demo', seat: null, title: 'Not released', released: false, after: [], onfail: [], cycles: null };
+  const q = R.queueNext([unreleased]);
+  assert.strictEqual(q.actionable.length, 0);
+  // positive case: same task, released -> actionable
+  const released = Object.assign({}, unreleased, { display_id: '602', released: true });
+  const q2 = R.queueNext([released]);
+  assert.deepStrictEqual(q2.actionable.map(t => t.display_id), ['602']);
+});
+
 test('verificationTail splits awaiting vs verified vs cancelled', () => {
   const v = R.verificationTail(tasks);
   // awaiting = ALL completed_unverified (back-compat)
